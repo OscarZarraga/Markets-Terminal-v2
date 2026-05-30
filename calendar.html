@@ -1,0 +1,534 @@
+<!doctype html>
+<!--
+  Watchlist Feed (formerly the Calendar tab).
+  Reads your watchlist from localStorage["terminal_wl"] (set by the
+  Markets tab) and pulls news, press releases, SEC filings, and the
+  next earnings date for each ticker. All from free sources (Yahoo,
+  Google News, SEC EDGAR, Nasdaq, MarketWatch, PR Newswire, etc.).
+
+  Click an article  → opens in a new in-app tab (proxied — no Chrome).
+  Click a ticker    → loads it in the Markets tab.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Watchlist Feed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#000; --panel:#0b0b0b; --line:#1d1d1d; --text:#e9e9e9;
+  --muted:#8a8a8a; --dim:#5a5a5a;
+  --orange:#ff8c00; --amber:#ffb000; --green:#00d68f; --red:#ff3b30;
+  --blue:#4ea1ff; --purple:#b58cff;
+  --mono:'JetBrains Mono','SF Mono','Menlo',monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100vh;background:#000;color:var(--text);font-family:var(--mono);font-size:11px;}
+body{display:flex;flex-direction:column;overflow:hidden;}
+a{color:var(--blue);text-decoration:none;}
+a:hover{text-decoration:underline;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:#000;}
+::-webkit-scrollbar-thumb{background:#222;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:linear-gradient(180deg,#1a0e02,#000);border-bottom:1px solid var(--line);flex-shrink:0;}
+.topbar .h1{color:var(--orange);font-weight:700;letter-spacing:3px;font-size:13px;}
+.topbar .h1 .sub{color:var(--muted);font-size:11px;letter-spacing:1px;margin-left:14px;}
+.controls{display:flex;align-items:center;gap:8px;}
+.controls .chip{padding:3px 12px;border:1px solid #2a1a05;color:var(--muted);cursor:pointer;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;}
+.controls .chip:hover{color:var(--text);}
+.controls .chip.active{background:#2a1a05;color:var(--amber);}
+.controls .chip.btn{color:var(--amber);}
+
+.viewTabs{display:flex;background:#080808;border-bottom:1px solid var(--line);flex-shrink:0;overflow-x:auto;}
+.viewTab{padding:8px 18px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line);text-transform:uppercase;letter-spacing:2px;font-size:10px;white-space:nowrap;}
+.viewTab.active{color:var(--amber);background:#120a02;box-shadow:inset 0 -2px 0 var(--orange);}
+.viewTab:hover{color:var(--text);}
+.viewTab .count{margin-left:8px;color:var(--dim);font-size:9px;}
+.viewTab.active .count{color:var(--orange);}
+
+.body{flex:1;min-height:0;overflow:auto;background:#000;}
+.empty{padding:24px;color:var(--dim);text-align:center;font-size:11px;letter-spacing:1px;}
+.err{padding:14px;color:var(--red);font-size:11px;}
+
+/* Feed item */
+.feed{padding:0;}
+.item{padding:8px 14px;border-bottom:1px solid #131313;display:grid;grid-template-columns:90px 80px 1fr 130px;gap:12px;align-items:start;cursor:pointer;}
+.item:hover{background:#0e0e0e;}
+.item .when{color:var(--dim);font-size:10px;letter-spacing:1px;}
+.item .sym{color:var(--amber);font-weight:500;}
+.item .ttl{color:var(--text);overflow:hidden;}
+.item .ttl .src{display:inline-block;font-size:9px;color:var(--muted);margin-left:8px;text-transform:uppercase;letter-spacing:1px;}
+.item .kind{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;text-align:right;color:var(--muted);}
+.item.news .kind{color:var(--blue);}
+.item.press .kind{color:var(--purple);}
+.item.filing .kind{color:var(--amber);}
+.item.earn .kind{color:var(--green);}
+.item .body{color:var(--muted);font-size:10px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* per-ticker view */
+.tickerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:1px;background:var(--line);}
+.tickerCard{background:#000;padding:0;}
+.tickerCard .h{padding:7px 14px;background:#0a0a0a;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.tickerCard .h .sym{color:var(--amber);font-weight:600;letter-spacing:1px;cursor:pointer;}
+.tickerCard .h .meta{color:var(--muted);font-size:9px;letter-spacing:1px;text-transform:uppercase;}
+.tickerCard .sect{padding:5px 14px;color:var(--orange);font-size:9px;letter-spacing:2px;text-transform:uppercase;background:#0a0a0a;border-bottom:1px solid var(--line);}
+.tickerCard .li{padding:6px 14px;font-size:10px;border-bottom:1px solid #131313;cursor:pointer;}
+.tickerCard .li:hover{background:#0e0e0e;}
+.tickerCard .li .when{color:var(--dim);font-size:9px;letter-spacing:1px;}
+.tickerCard .li .ttl{color:var(--text);margin-top:2px;}
+
+.foot{padding:8px 14px;color:var(--dim);font-size:9px;text-align:center;letter-spacing:1px;border-top:1px solid var(--line);background:#050505;flex-shrink:0;}
+
+/* TradingView-style earnings table */
+.earnTable{width:100%;border-collapse:collapse;font-size:11px;}
+.earnTable thead th{position:sticky;top:0;background:#0a0a0a;color:var(--muted);font-weight:500;
+  text-transform:uppercase;letter-spacing:1.5px;font-size:9px;padding:8px 12px;
+  text-align:left;border-bottom:1px solid var(--line);z-index:2;}
+.earnTable thead th.r{text-align:right;}
+.earnTable thead th.c{text-align:center;}
+.earnTable tbody td{padding:8px 12px;border-bottom:1px solid #131313;white-space:nowrap;}
+.earnTable tbody td.r{text-align:right;}
+.earnTable tbody td.c{text-align:center;}
+.earnTable tbody tr:hover td{background:#0e0e0e;cursor:pointer;}
+
+.earnTable .date{color:var(--amber);font-weight:500;letter-spacing:0.5px;}
+.earnTable .ticker{color:var(--amber);font-weight:600;cursor:pointer;letter-spacing:0.5px;}
+.earnTable .name{color:var(--text);overflow:hidden;text-overflow:ellipsis;max-width:260px;display:inline-block;}
+.earnTable .logo{width:18px;height:18px;border-radius:3px;vertical-align:middle;margin-right:7px;background:#1a1a1a;}
+.earnTable .period{color:var(--blue);font-size:10px;letter-spacing:1px;}
+.earnTable .est{color:var(--muted);}
+.earnTable .act{color:var(--text);font-weight:500;}
+.earnTable .act.beat{color:var(--green);}
+.earnTable .act.miss{color:var(--red);}
+.earnTable .surp{font-weight:500;font-size:11px;}
+.earnTable .surp.beat{color:var(--green);}
+.earnTable .surp.miss{color:var(--red);}
+.earnTable .mcap{color:var(--muted);}
+
+/* Time-of-day pill */
+.tod{display:inline-block;padding:1px 7px;font-size:9px;border:1px solid var(--line);
+  letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.tod.amc{color:#b58cff;border-color:#3a2a55;}
+.tod.bmo{color:#ffb000;border-color:#3a2a05;}
+
+/* Section header */
+.earnSect{padding:8px 14px;background:#0a0a0a;border-bottom:1px solid var(--line);border-top:1px solid var(--line);
+  color:var(--orange);text-transform:uppercase;letter-spacing:2.5px;font-size:11px;font-weight:600;
+  display:flex;justify-content:space-between;align-items:center;}
+.earnSect .count{color:var(--muted);font-size:10px;}
+
+/* Empty cells */
+.muted{color:var(--dim);}
+.placeholder{color:var(--dim);font-size:10px;letter-spacing:0.5px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="h1">WATCHLIST FEED <span class="sub" id="wlCount">…</span></div>
+  <div class="controls">
+    <span class="chip btn" id="refreshBtn" title="Reload now">↻ REFRESH</span>
+  </div>
+</div>
+
+<div class="viewTabs" id="viewTabs">
+  <div class="viewTab active" data-v="all">All <span class="count" id="cnt-all"></span></div>
+  <div class="viewTab"        data-v="news">News <span class="count" id="cnt-news"></span></div>
+  <div class="viewTab"        data-v="press">Press Releases <span class="count" id="cnt-press"></span></div>
+  <div class="viewTab"        data-v="filing">SEC Filings <span class="count" id="cnt-filing"></span></div>
+  <div class="viewTab"        data-v="earn">Earnings Dates <span class="count" id="cnt-earn"></span></div>
+  <div class="viewTab"        data-v="byTicker">By Ticker</div>
+</div>
+
+<div class="body">
+  <div id="content"><div class="empty">Loading watchlist…</div></div>
+</div>
+
+<div class="foot">Watchlist is the one set in the Markets tab (localStorage["terminal_wl"]) ·
+  Articles open as in-app tabs · Click a ticker to load it in Markets &nbsp;·&nbsp; <span style="color:#ffb000">Created by Oscar Zarraga Perez</span></div>
+
+<script>
+const state = {
+  view: 'all',
+  items: [],         // unified, sorted by date desc
+  byTicker: {},      // sym -> { earnings, news, press, filings }
+  loading: false,
+};
+
+function getWatchlist(){
+  try{
+    const raw = localStorage.getItem('terminal_wl');
+    if(!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter(s=>s && /^[A-Z\.\-\^=]+$/i.test(s.trim())).map(s=>s.trim().toUpperCase()) : [];
+  }catch(_){ return []; }
+}
+
+function fmtWhen(ts){
+  if(!ts) return '';
+  const d = new Date(typeof ts === 'number' ? (ts > 1e12 ? ts : ts*1000) : ts);
+  if(isNaN(d.getTime())) return '';
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if(diff < 60) return 'just now';
+  if(diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if(diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if(diff < 86400*7) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+function tsOf(item){
+  if(item.ts) return typeof item.ts === 'number' ? (item.ts > 1e12 ? item.ts : item.ts*1000) : Date.parse(item.ts);
+  if(item.date) return Date.parse(item.date);
+  if(item.providerPublishTime) return item.providerPublishTime * 1000;
+  return 0;
+}
+
+function openSymbol(sym){
+  try{ window.parent.postMessage({type:'unified-terminal:focus-tab', tabId:'markets', symbol:sym}, '*'); }
+  catch(_){}
+}
+function openTab(url, title){
+  if(!url) return;
+  try{ window.parent.postMessage({type:'unified-terminal:open-tab', url:url, title:title||'Article'}, '*'); }
+  catch(_){}
+}
+window.openSymbol = openSymbol;
+window.openTab = openTab;
+
+/* ---------- fetchers (per-ticker) ---------- */
+async function fetchJSON(url){
+  try{ const r = await fetch(url, {cache:'no-store'}); if(!r.ok) return null; return await r.json(); }
+  catch(_){ return null; }
+}
+async function pullNews(sym)    { const j = await fetchJSON(`/api/news-all/${encodeURIComponent(sym)}?limit=15`); return (j?.news || j?.items || []); }
+async function pullPress(sym)   { return ((await fetchJSON(`/api/press/${encodeURIComponent(sym)}?limit=15`))?.items   || []); }
+async function pullFilings(sym) {
+  const j = await fetchJSON(`/api/summary/${encodeURIComponent(sym)}`);
+  return (((j?.quoteSummary?.result?.[0]?.secFilings || {}).filings) || []).slice(0, 15);
+}
+async function pullEarn(sym)    { return await fetchJSON(`/api/earningsdate/${encodeURIComponent(sym)}`); }
+
+/* ---------- load + merge ---------- */
+async function loadWatchlist(){
+  const wl = getWatchlist();
+  document.getElementById('wlCount').textContent = wl.length ? `${wl.length} ticker${wl.length===1?'':'s'}` : 'EMPTY';
+  if(!wl.length){
+    document.getElementById('content').innerHTML = '<div class="empty">Your watchlist is empty. Add tickers from the Markets tab and come back here.</div>';
+    return;
+  }
+
+  document.getElementById('content').innerHTML = '<div class="empty">Loading news, press releases, SEC filings, and earnings dates for ' + wl.length + ' tickers…</div>';
+
+  // Fan out per-ticker fetches in parallel (limit 8 in flight to be polite).
+  const allItems = [];
+  const byTicker = {};
+
+  async function worker(sym){
+    const [news, press, filings, earn] = await Promise.all([
+      pullNews(sym).catch(()=>[]),
+      pullPress(sym).catch(()=>[]),
+      pullFilings(sym).catch(()=>[]),
+      pullEarn(sym).catch(()=>null),
+    ]);
+    byTicker[sym] = { news, press, filings, earn };
+
+    news.forEach(n => allItems.push({
+      kind:'news', sym, title: n.title, link: n.link || n.url, source: n.publisher || n.source, ts: tsOf(n),
+      summary: n.summary || '',
+    }));
+    press.forEach(p => allItems.push({
+      kind:'press', sym, title: p.title, link: p.link, source: p.publisher || p.source, ts: tsOf(p),
+      summary: p.summary || '',
+    }));
+    filings.forEach(f => allItems.push({
+      kind:'filing', sym, title: (f.type ? f.type + ' — ' : '') + (f.title || ''),
+      link: f.edgarUrl, source: 'SEC EDGAR',
+      ts: f.epochDate ? f.epochDate * 1000 : Date.parse(f.date || 0),
+      summary: '',
+    }));
+    if(earn && earn.nextEarningsDate){
+      const t = Date.parse(earn.nextEarningsDate);
+      allItems.push({
+        kind:'earn', sym,
+        title: 'Earnings — ' + earn.nextEarningsDate + (earn.epsForecastConsensus!=null ? `  (EPS est ${earn.epsForecastConsensus})` : ''),
+        link: null, source: 'Nasdaq', ts: t,
+        summary: earn.epsForecastAnnual!=null ? ('Annual EPS forecast: ' + earn.epsForecastAnnual) : '',
+      });
+    }
+  }
+
+  // Limit concurrency to 8
+  let i = 0;
+  async function runNext(){
+    while(i < wl.length){
+      const sym = wl[i++];
+      await worker(sym);
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(8, wl.length)}, runNext));
+
+  allItems.sort((a,b)=> (b.ts||0) - (a.ts||0));
+  state.items = allItems;
+  state.byTicker = byTicker;
+  render();
+}
+
+/* ---------- view rendering ---------- */
+function renderItem(item){
+  return `<div class="item ${item.kind}" onclick="openTab('${(item.link||'').replace(/'/g,'%27')}','${(item.title||'').replace(/'/g,'').slice(0,60)}')">
+    <div class="when">${fmtWhen(item.ts)}</div>
+    <div class="sym" onclick="event.stopPropagation();openSymbol('${item.sym}')">${item.sym}</div>
+    <div class="ttl">${(item.title||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}<span class="src">${item.source||''}</span>${item.summary?`<div class="body">${item.summary.replace(/</g,'&lt;')}</div>`:''}</div>
+    <div class="kind">${item.kind==='news'?'NEWS':item.kind==='press'?'PRESS REL':item.kind==='filing'?'SEC FILING':'EARNINGS'}</div>
+  </div>`;
+}
+
+function renderFiltered(kind){
+  const list = kind === 'all' ? state.items : state.items.filter(i => i.kind === kind);
+  if(!list.length){
+    document.getElementById('content').innerHTML = '<div class="empty">No items in this view.</div>';
+    return;
+  }
+  document.getElementById('content').innerHTML = '<div class="feed">' + list.map(renderItem).join('') + '</div>';
+}
+
+function renderByTicker(){
+  const wl = getWatchlist();
+  if(!wl.length){ document.getElementById('content').innerHTML = '<div class="empty">Watchlist is empty.</div>'; return; }
+  const cards = wl.map(sym => {
+    const d = state.byTicker[sym] || {};
+    const earn = d.earn && d.earn.nextEarningsDate ? d.earn.nextEarningsDate : 'unknown';
+    function block(title, arr){
+      if(!arr || !arr.length) return '';
+      const rows = arr.slice(0,5).map(it => {
+        const t = (it.title||'').replace(/</g,'&lt;');
+        const u = it.link || it.edgarUrl || it.url || '';
+        const ts = it.ts || it.epochDate || (it.date ? Date.parse(it.date) : 0);
+        return `<div class="li" onclick="openTab('${(u||'').replace(/'/g,'%27')}','${t.replace(/'/g,'').slice(0,50)}')">
+          <div class="when">${fmtWhen(ts)}</div>
+          <div class="ttl">${t}</div>
+        </div>`;
+      }).join('');
+      return `<div class="sect">${title}</div>${rows}`;
+    }
+    return `<div class="tickerCard">
+      <div class="h">
+        <span class="sym" onclick="openSymbol('${sym}')">${sym}</span>
+        <span class="meta">Next earnings: ${earn}</span>
+      </div>
+      ${block('News', d.news)}
+      ${block('Press Releases', d.press)}
+      ${block('SEC Filings', d.filings)}
+    </div>`;
+  }).join('');
+  document.getElementById('content').innerHTML = '<div class="tickerGrid">' + cards + '</div>';
+}
+
+function render(){
+  /* counts */
+  const counts = state.items.reduce((m,i)=>{ m[i.kind]=(m[i.kind]||0)+1; m.all++; return m; }, {all:0});
+  document.getElementById('cnt-all').textContent     = counts.all     ? '· '+counts.all     : '';
+  document.getElementById('cnt-news').textContent    = counts.news    ? '· '+counts.news    : '';
+  document.getElementById('cnt-press').textContent   = counts.press   ? '· '+counts.press   : '';
+  document.getElementById('cnt-filing').textContent  = counts.filing  ? '· '+counts.filing  : '';
+  document.getElementById('cnt-earn').textContent    = counts.earn    ? '· '+counts.earn    : '';
+
+  if(state.view === 'byTicker') renderByTicker();
+  else if(state.view === 'earn') renderEarningsTable();
+  else renderFiltered(state.view);
+}
+
+document.getElementById('viewTabs').addEventListener('click', (e)=>{
+  const t = e.target.closest('.viewTab'); if(!t) return;
+  document.querySelectorAll('.viewTab').forEach(x=>x.classList.toggle('active', x===t));
+  state.view = t.dataset.v;
+  render();
+});
+document.getElementById('refreshBtn').addEventListener('click', loadWatchlist);
+
+/* re-load when shell tells us watchlist changed (set by parent shell if needed) */
+window.addEventListener('message', (e)=>{
+  if(e.data && e.data.type === 'unified-terminal:watchlist-changed'){
+    loadWatchlist();
+  }
+});
+
+/* boot */
+loadWatchlist();
+
+/* auto-refresh every 5 min */
+setInterval(loadWatchlist, 300000);
+
+
+/* ===== Rich earnings calendar (TradingView-style) ===== */
+state.earnData = null;       // {sym: rich_earnings_payload}
+state.earnLoading = false;
+
+async function loadRichEarnings(){
+  const wl = getWatchlist();
+  if(!wl.length){ return; }
+  if(state.earnLoading) return;
+  state.earnLoading = true;
+  try{
+    const url = '/api/earnings/rich-batch?symbols=' + encodeURIComponent(wl.join(','));
+    const r = await fetch(url, {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    state.earnData = j.data || {};
+    if(state.view === 'earn') renderEarningsTable();
+  }catch(e){
+    console.error('rich earnings load failed', e);
+  }finally{
+    state.earnLoading = false;
+  }
+}
+
+function fmtMcap(n){
+  if(n==null) return '—';
+  if(Math.abs(n) >= 1e12) return '$'+(n/1e12).toFixed(2)+'T';
+  if(Math.abs(n) >= 1e9)  return '$'+(n/1e9).toFixed(2)+'B';
+  if(Math.abs(n) >= 1e6)  return '$'+(n/1e6).toFixed(1)+'M';
+  return '$'+n.toLocaleString();
+}
+function fmtEps(v){
+  if(v==null) return '—';
+  return (v>=0 ? '+' : '') + (+v).toFixed(2);
+}
+function fmtPct(v){
+  if(v==null) return '—';
+  return (v>=0 ? '+' : '') + (+v).toFixed(2) + '%';
+}
+function fmtDate(s){
+  if(!s) return '—';
+  const d = new Date(s);
+  if(isNaN(d.getTime())) return s;
+  const now = new Date();
+  const diff = (d - now) / 86400000;
+  const ymd = d.toLocaleDateString('en-US', {month:'short', day:'numeric', year: d.getFullYear()===now.getFullYear()?undefined:'numeric'});
+  if(diff > -1 && diff < 1) return 'TODAY · ' + ymd;
+  if(diff > 0 && diff < 2) return 'TMRW · ' + ymd;
+  if(diff > 0 && diff < 7) return 'IN '+Math.ceil(diff)+'D · ' + ymd;
+  return ymd;
+}
+
+function renderEarningsTable(){
+  if(state.earnLoading && !state.earnData){
+    document.getElementById('content').innerHTML = '<div class="empty">Loading rich earnings data…</div>';
+    return;
+  }
+  if(!state.earnData){
+    document.getElementById('content').innerHTML = '<div class="empty">Loading…</div>';
+    loadRichEarnings();
+    return;
+  }
+  const wl = getWatchlist();
+  // Separate upcoming vs past
+  const upcoming = [];
+  const past = [];
+  for(const sym of wl){
+    const d = state.earnData[sym]; if(!d) continue;
+    if(d.nextEarningsDate){
+      const t = new Date(d.nextEarningsDate);
+      if(!isNaN(t) && t >= new Date(Date.now() - 86400000)){
+        upcoming.push({sym, ...d});
+        continue;
+      }
+    }
+    if((d.history||[]).length || d.name){
+      past.push({sym, ...d});
+    }
+  }
+  // Sort upcoming by date asc, past by most recent quarter desc
+  upcoming.sort((a,b)=> (new Date(a.nextEarningsDate) - new Date(b.nextEarningsDate)));
+  past.sort((a,b)=>{
+    const ah = (a.history||[])[0]; const bh = (b.history||[])[0];
+    return ((bh?.period||'') > (ah?.period||'')) ? 1 : -1;
+  });
+
+  function rowsUpcoming(arr){
+    if(!arr.length) return '<tr><td colspan="9" class="placeholder" style="padding:14px;text-align:center">No upcoming earnings in watchlist.</td></tr>';
+    return arr.map(r => {
+      const tod = (r.timeOfDay||'').toUpperCase();
+      const todPill = tod==='AMC' ? '<span class="tod amc">AMC</span>' :
+                       tod==='BMO' ? '<span class="tod bmo">BMO</span>' :
+                       '<span class="tod">—</span>';
+      const logo = r.logo ? `<img class="logo" src="${r.logo}" onerror="this.style.display='none'"/>` : '';
+      return `<tr onclick="openSymbol('${r.sym}')">
+        <td class="date">${fmtDate(r.nextEarningsDate)}</td>
+        <td class="c">${todPill}</td>
+        <td><span class="ticker">${r.sym}</span></td>
+        <td>${logo}<span class="name">${(r.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></td>
+        <td class="c"><span class="period">${(r.nextPeriod||'—')}</span></td>
+        <td class="r est">${fmtEps(r.epsForecast)}</td>
+        <td class="r placeholder">awaiting</td>
+        <td class="r placeholder">—</td>
+        <td class="r mcap">${fmtMcap(r.marketCap)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function rowsPast(arr){
+    if(!arr.length) return '<tr><td colspan="9" class="placeholder" style="padding:14px;text-align:center">No past earnings history.</td></tr>';
+    return arr.map(r => {
+      const h = (r.history||[])[0] || {};
+      const est = h.epsEstimate, act = h.epsActual, sp = h.epsSurprisePct;
+      const beat = (sp != null) ? (sp >= 0) : (act != null && est != null ? act >= est : null);
+      const actCls = beat===null ? '' : (beat ? 'beat' : 'miss');
+      const logo = r.logo ? `<img class="logo" src="${r.logo}" onerror="this.style.display='none'"/>` : '';
+      const period = h.period || (h.quarter && h.year ? `Q${h.quarter} ${h.year}` : '—');
+      return `<tr onclick="openSymbol('${r.sym}')">
+        <td class="date">${period}</td>
+        <td class="c placeholder">REPORTED</td>
+        <td><span class="ticker">${r.sym}</span></td>
+        <td>${logo}<span class="name">${(r.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></td>
+        <td class="c"><span class="period">${period}</span></td>
+        <td class="r est">${fmtEps(est)}</td>
+        <td class="r act ${actCls}">${fmtEps(act)}</td>
+        <td class="r surp ${actCls}">${fmtPct(sp)}</td>
+        <td class="r mcap">${fmtMcap(r.marketCap)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const tableHead = `<thead><tr>
+    <th>Date / Period</th>
+    <th class="c">Time</th>
+    <th>Sym</th>
+    <th>Company</th>
+    <th class="c">Period</th>
+    <th class="r">EPS Est</th>
+    <th class="r">EPS Actual</th>
+    <th class="r">Surprise %</th>
+    <th class="r">Market Cap</th>
+  </tr></thead>`;
+
+  document.getElementById('content').innerHTML = `
+    <div class="earnSect">Upcoming Earnings <span class="count">${upcoming.length}</span></div>
+    <table class="earnTable">${tableHead}<tbody>${rowsUpcoming(upcoming)}</tbody></table>
+    <div class="earnSect">Reported (Most Recent Quarter) <span class="count">${past.length}</span></div>
+    <table class="earnTable">${tableHead}<tbody>${rowsPast(past)}</tbody></table>
+    <div class="empty" style="padding:14px;font-size:9px">Data: Finnhub (history + market cap) · Nasdaq (next date + forecast) · Click ticker to load in Markets tab</div>
+  `;
+}
+
+// Also load earnings whenever the earn tab is activated.
+document.getElementById('viewTabs').addEventListener('click', (e)=>{
+  const t = e.target.closest('.viewTab'); if(!t) return;
+  if(t.dataset.v === 'earn') loadRichEarnings();
+});
+
+// And re-load on auto-refresh
+const _origLoadWatchlist = loadWatchlist;
+loadWatchlist = async function(){
+  await _origLoadWatchlist();
+  loadRichEarnings();
+};
+
+</script>
+</body>
+</html>

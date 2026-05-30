@@ -1,0 +1,99 @@
+================================================================
+  HOW TO ADD YOUR API KEYS
+================================================================
+
+The terminal works without any API keys — but adding them improves
+real-time stock quotes and unlocks deeper company data.
+
+----------------------------------------------------------------
+STEP 1 — Find the template
+----------------------------------------------------------------
+In this folder you'll see a file named:
+
+    keys.json.example
+
+That is the template. (Windows may hide the ".example" extension —
+look for the file whose name starts with "keys".)
+
+----------------------------------------------------------------
+STEP 2 — Copy it and rename
+----------------------------------------------------------------
+Copy "keys.json.example" and rename the copy to:
+
+    keys.json
+
+(no ".example" at the end)
+
+Two files should now exist:
+    keys.json.example   ← the original template, don't edit this
+    keys.json           ← your private copy, paste keys into this one
+
+----------------------------------------------------------------
+STEP 3 — Get free API keys (any/all are optional)
+----------------------------------------------------------------
+Sign up for any of these — all have free tiers:
+
+    Finnhub                 https://finnhub.io/register
+       60 requests/minute · best for real-time stock quotes
+
+    Financial Modeling Prep https://site.financialmodelingprep.com/developer/docs
+       250 requests/day · good for company fundamentals
+
+    Twelve Data             https://twelvedata.com/register
+       8 req/min · 800/day · covers some international tickers
+
+    Alpha Vantage           https://www.alphavantage.co/support/#api-key
+       5 req/min · 500/day · backup for stocks and FX
+
+You don't need all four. Even one (Finnhub recommended) is plenty.
+
+----------------------------------------------------------------
+STEP 4 — Paste your keys into keys.json
+----------------------------------------------------------------
+Open keys.json with any text editor (Notepad, TextEdit, VS Code).
+It looks like this (with the comment lines you can ignore):
+
+    {
+      "alpha_vantage": "",
+      "fmp":           "",
+      "finnhub":       "",
+      "twelve_data":   ""
+    }
+
+Paste the key you got from the provider between the quote marks,
+for example:
+
+    {
+      "alpha_vantage": "",
+      "fmp":           "",
+      "finnhub":       "abc123yourkeygoeshere",
+      "twelve_data":   ""
+    }
+
+Leave any provider you don't have blank. Save the file.
+
+----------------------------------------------------------------
+STEP 5 — Restart the terminal
+----------------------------------------------------------------
+Close the terminal (close the command window), then double-click
+the launcher again:
+
+    Windows:       start_windows.bat
+    macOS / Linux: start_mac_linux.command
+
+The bottom status bar of the Markets tab will show which keys
+loaded (e.g. "keys: AV  FMP  FH  TD" — green where lit).
+
+----------------------------------------------------------------
+SECURITY NOTE
+----------------------------------------------------------------
+Never commit keys.json to a public repository. The included
+.gitignore file already excludes it, so as long as you don't
+rename it, GitHub will never see it.
+
+If a key ever leaks, revoke it at the provider and generate a
+new one.
+
+----------------------------------------------------------------
+For more detail, see SETUP.pdf in this folder.
+----------------------------------------------------------------

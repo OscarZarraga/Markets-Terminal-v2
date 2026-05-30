@@ -1,0 +1,16 @@
+{
+  "_README": [
+    "Copy this file to keys.json and paste your free-tier API keys below.",
+    "All four are OPTIONAL — the terminal works fully without them, just",
+    "with a smaller fallback surface for stock data.",
+    "Sign-up links:",
+    "  alpha_vantage: https://www.alphavantage.co/support/#api-key",
+    "  fmp:           https://site.financialmodelingprep.com/developer/docs",
+    "  finnhub:       https://finnhub.io/register",
+    "  twelve_data:   https://twelvedata.com/register"
+  ],
+  "alpha_vantage": "",
+  "fmp":           "",
+  "finnhub":       "",
+  "twelve_data":   ""
+}
