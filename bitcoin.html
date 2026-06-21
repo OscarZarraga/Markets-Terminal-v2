@@ -1,0 +1,337 @@
+<!doctype html>
+<!--
+  Bitcoin Intelligence — Unified Terminal sub-page.
+  Bitcoin is the centerpiece. Data sources are kept free where possible:
+  CoinGecko (BTC market, BTC vs fiat, deep stats),
+  mempool.space (chain health),
+  alternative.me (Fear & Greed),
+  Yahoo / Stooq (basket equity quotes — free, no API keys).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bitcoin Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#000; --panel:#0b0b0b; --panel2:#111; --line:#1d1d1d;
+  --text:#ffffff; --muted:#e8e8e8; --dim:#b8b8b8;
+  --orange:#ff8c00; --amber:#ffb000; --green:#00d68f; --red:#ff3b30;
+  --blue:#4ea1ff; --mono:'JetBrains Mono','SF Mono','Menlo',monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100vh;background:#000;color:var(--text);font-family:var(--mono);font-size:12px;overflow:auto;}
+a{color:var(--blue);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* ===== HERO (Bitcoin price the size of a billboard) ===== */
+.hero{padding:18px 22px;background:linear-gradient(180deg,#1a0e02 0%,#000 100%);border-bottom:1px solid var(--line);}
+.hero .ttl{color:var(--orange);letter-spacing:4px;font-size:12px;font-weight:700;}
+.hero .row1{display:flex;align-items:baseline;gap:24px;margin-top:6px;flex-wrap:wrap;}
+.hero .price{color:var(--amber);font-size:54px;font-weight:700;letter-spacing:-1px;line-height:1;}
+.hero .chg{font-size:18px;font-weight:600;}
+.hero .pos{color:var(--green);} .hero .neg{color:var(--red);}
+.hero .sub{color:var(--muted);font-size:11px;letter-spacing:1px;}
+.hero .row2{display:flex;gap:32px;margin-top:14px;flex-wrap:wrap;}
+.hero .stat{font-size:11px;}
+.hero .stat .l{color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-size:9px;}
+.hero .stat .v{color:var(--text);font-size:14px;font-weight:600;margin-top:2px;}
+.hero .meta{color:var(--dim);font-size:10px;letter-spacing:1.5px;margin-top:14px;}
+.hero .meta .live{color:var(--green);}
+
+/* ===== SECTION HEADERS ===== */
+.section{padding:7px 14px;background:#0a0a0a;border-bottom:1px solid var(--line);color:var(--orange);text-transform:uppercase;letter-spacing:2.5px;font-size:10px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);}
+.section .src{color:var(--dim);font-size:9px;}
+
+/* ===== GRIDS ===== */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);}
+.cell{background:#000;padding:10px 14px;min-height:74px;}
+.cell .lbl{color:var(--muted);font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
+.cell .val{color:var(--text);font-size:16px;font-weight:600;line-height:1.15;}
+.cell .sub{color:var(--dim);font-size:10px;margin-top:5px;letter-spacing:1px;}
+.cell .pos,.pos{color:var(--green);}
+.cell .neg,.neg{color:var(--red);}
+
+/* fiat row */
+.fiatRow{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);}
+.fiat{background:#000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
+.fiat .ccy{color:var(--orange);font-size:11px;letter-spacing:2px;}
+.fiat .px{color:var(--text);font-size:15px;font-weight:600;}
+.fiat .pct{font-size:10px;margin-left:6px;}
+
+/* fear/greed */
+.sentRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);}
+.sentCard{background:#000;padding:14px 18px;display:flex;align-items:center;gap:18px;}
+.gauge{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;color:#000;flex-shrink:0;}
+
+/* baskets — secondary on this page */
+.baskets{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);}
+.basket{background:#000;}
+.basket .h{padding:6px 14px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;font-size:9px;background:#0a0a0a;border-bottom:1px solid var(--line);}
+.basket table{width:100%;border-collapse:collapse;font-size:11px;}
+.basket th,.basket td{padding:5px 14px;border-bottom:1px solid #131313;}
+.basket th{text-align:left;color:var(--muted);background:#0a0a0a;font-weight:400;text-transform:uppercase;letter-spacing:1px;font-size:8px;}
+.basket td.r,.basket th.r{text-align:right;}
+.basket td.sym{color:var(--amber);}
+.basket tr:hover td{background:#0a0a0a;cursor:pointer;}
+
+.foot{color:var(--dim);padding:10px 14px;font-size:9px;text-align:center;letter-spacing:1px;border-top:1px solid var(--line);background:#050505;}
+
+@media (max-width: 1100px){
+  .grid{grid-template-columns:repeat(2,1fr);}
+  .fiatRow{grid-template-columns:repeat(2,1fr);}
+  .sentRow{grid-template-columns:1fr;}
+  .baskets{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ======== HERO ======== -->
+<div class="hero">
+  <div class="ttl">BITCOIN INTELLIGENCE</div>
+  <div class="row1">
+    <div class="price" id="hPrice">—</div>
+    <div class="chg" id="hChg">—</div>
+    <div class="sub">vs USD &nbsp;·&nbsp; <span id="hRank">—</span></div>
+  </div>
+  <div class="row2">
+    <div class="stat"><div class="l">Market Cap</div><div class="v" id="hMcap">—</div></div>
+    <div class="stat"><div class="l">Dominance</div><div class="v" id="hDom">—</div></div>
+    <div class="stat"><div class="l">24h Volume</div><div class="v" id="hVol">—</div></div>
+    <div class="stat"><div class="l">All-Time High</div><div class="v" id="hAth">—</div></div>
+    <div class="stat"><div class="l">All-Time Low</div><div class="v" id="hAtl">—</div></div>
+    <div class="stat"><div class="l">Circulating</div><div class="v" id="hSupply">—</div></div>
+  </div>
+  <div class="meta">
+    <span class="live">● LIVE</span> &nbsp;·&nbsp; <span id="hTs">—</span>
+    &nbsp;·&nbsp; sources: CoinGecko · mempool.space · alternative.me
+  </div>
+</div>
+
+<!-- ======== PERFORMANCE GRID ======== -->
+<div class="section">BTC PRICE PERFORMANCE <span class="src">CoinGecko</span></div>
+<div class="grid" id="perfGrid"></div>
+
+<!-- ======== BTC vs FIAT ======== -->
+<div class="section">BTC vs FIAT <span class="src">CoinGecko</span></div>
+<div class="fiatRow" id="fiatRow"></div>
+
+<!-- ======== CHAIN HEALTH ======== -->
+<div class="section">CHAIN HEALTH <span class="src">mempool.space</span></div>
+<div class="grid" id="chainGrid"></div>
+
+<!-- ======== HALVING ======== -->
+<div class="section">HALVING COUNTDOWN <span class="src">derived from current block</span></div>
+<div class="grid" id="halvingGrid"></div>
+
+<!-- ======== BITCOIN EXTRAS / SENTIMENT ======== -->
+<div class="section">SENTIMENT &amp; SUPPLY <span class="src">alternative.me · CoinGecko</span></div>
+<div class="sentRow" id="sentRow"></div>
+<div class="grid" id="extrasGrid"></div>
+
+<!-- ======== EQUITY BASKETS (secondary, smaller) ======== -->
+<div class="section">BTC EQUITY HIGHLIGHTS <span class="src">free sources: Yahoo · Stooq</span></div>
+<div class="baskets">
+  <div class="basket"><div class="h">Bitcoin Treasury Companies</div><table id="bskTreas"><tbody></tbody></table></div>
+  <div class="basket"><div class="h">Bitcoin Miners</div><table id="bskMiners"><tbody></tbody></table></div>
+  <div class="basket"><div class="h">Bitcoin ETFs</div><table id="bskEtfs"><tbody></tbody></table></div>
+</div>
+
+<div class="foot">Auto-refresh every 30s · click any symbol to load it in Markets · BTC focus · free data sources first</div>
+
+<script>
+/* ===== formatters ===== */
+const fmt = {
+  usd:(n)=>n==null?'—':'$'+(Math.abs(n)>=1e12?(n/1e12).toFixed(2)+'T':Math.abs(n)>=1e9?(n/1e9).toFixed(2)+'B':Math.abs(n)>=1e6?(n/1e6).toFixed(1)+'M':n.toLocaleString(undefined,{maximumFractionDigits:n>=100?0:2})),
+  price:(n,d)=>{ if(n==null) return '—'; const ad=d??(Math.abs(n)>=100?0:Math.abs(n)>=1?2:4); return '$'+n.toLocaleString(undefined,{maximumFractionDigits:ad,minimumFractionDigits:ad}); },
+  pct:(n)=>n==null?'—':(n>=0?'+':'')+n.toFixed(2)+'%',
+  num:(n,d=0)=>n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:d}),
+  ccy:(n,sym)=>{ if(n==null) return '—'; const d=n>=100?0:2; return sym+n.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}); },
+};
+function cls(n){ return n==null?'':(n>=0?'pos':'neg'); }
+function fearColor(v){
+  if(v==null) return '#444';
+  if(v<25) return '#ff3b30';
+  if(v<45) return '#ff8c00';
+  if(v<55) return '#ffb000';
+  if(v<75) return '#9bd400';
+  return '#00d68f';
+}
+function cell(lbl, val, sub, klass=''){
+  return `<div class="cell"><div class="lbl">${lbl}</div><div class="val ${klass}">${val}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
+}
+
+/* ===== renderers ===== */
+function renderHero(d){
+  const b = d.btc || {};
+  document.getElementById('hPrice').textContent = fmt.price(b.price);
+  const c = document.getElementById('hChg');
+  c.innerHTML = `<span class="${cls(b.change24h)}">${fmt.pct(b.change24h)}</span> <span class="sub">24h</span>`;
+  document.getElementById('hMcap').textContent = fmt.usd(b.marketCap);
+  document.getElementById('hDom').textContent  = b.dominance!=null?b.dominance.toFixed(1)+'%':'—';
+  document.getElementById('hVol').textContent  = fmt.usd(b.volume24h);
+  document.getElementById('hAth').textContent  = (b.ath?fmt.price(b.ath):'—') + (b.athDistance!=null?` (${fmt.pct(b.athDistance)})`:'');
+  const ex = d.extras || {};
+  document.getElementById('hAtl').textContent  = (ex.atl?fmt.price(ex.atl):'—') + (ex.atlPct!=null?` (${fmt.pct(ex.atlPct)})`:'');
+  document.getElementById('hSupply').textContent = fmt.num(b.circulatingSupply) + ' / 21M';
+  document.getElementById('hRank').textContent = ex.marketCapRank? `Rank #${ex.marketCapRank}`:'';
+}
+
+function renderPerf(d){
+  const b = d.btc || {};
+  document.getElementById('perfGrid').innerHTML = [
+    cell('1H',  fmt.pct(b.change1h),  '', cls(b.change1h)),
+    cell('24H', fmt.pct(b.change24h), '', cls(b.change24h)),
+    cell('7D',  fmt.pct(b.change7d),  '', cls(b.change7d)),
+    cell('30D', fmt.pct(b.change30d), '', cls(b.change30d)),
+    cell('1Y',  fmt.pct(b.change1y),  '', cls(b.change1y)),
+    cell('Distance from ATH', b.athDistance!=null?fmt.pct(b.athDistance):'—', b.athDate||'', cls(b.athDistance)),
+    cell('Volume / MCap', (b.volume24h && b.marketCap)?((b.volume24h/b.marketCap*100).toFixed(2)+'%'):'—', '24h turnover'),
+    cell('Supply Used', b.circulatingSupply?((b.circulatingSupply/21e6)*100).toFixed(2)+'%':'—', 'of 21M cap'),
+  ].join('');
+}
+
+function renderFiat(d){
+  const f = d.fiat || {};
+  const symbols = { USD:'$', EUR:'€', GBP:'£', JPY:'¥', CNY:'¥', CHF:'Fr', AUD:'A$', CAD:'C$' };
+  const html = Object.entries(symbols).map(([ccy, sym]) => {
+    const q = f[ccy];
+    if(!q) return `<div class="fiat"><span class="ccy">BTC/${ccy}</span><span class="px">—</span></div>`;
+    const klass = cls(q.changePct);
+    return `<div class="fiat">
+      <span class="ccy">BTC/${ccy}</span>
+      <span><span class="px">${fmt.ccy(q.price, sym)}</span>
+            <span class="pct ${klass}">${fmt.pct(q.changePct)}</span></span>
+    </div>`;
+  }).join('');
+  document.getElementById('fiatRow').innerHTML = html;
+}
+
+function renderChain(d){
+  const c = d.chain || {};
+  document.getElementById('chainGrid').innerHTML = [
+    cell('Block Height',    fmt.num(c.blockHeight)),
+    cell('Hash Rate',       (c.hashRateEH||0).toFixed(1)+' EH/s'),
+    cell('Mempool',         (c.mempoolMB||0).toFixed(1)+' MB', fmt.num(c.mempoolTx)+' tx pending'),
+    cell('Fast Fee',        (c.fastFeeSats||0)+' sat/vB', 'next block'),
+    cell('Next Difficulty', (c.nextDiffPct>=0?'+':'')+(c.nextDiffPct||0).toFixed(2)+'%',
+                            'in '+(c.nextDiffBlocks||0)+' blocks · ~'+(c.nextDiffDays||0)+'d', cls(c.nextDiffPct)),
+    cell('Block Time',      (c.blockTimeMins||10).toFixed(2)+' min', 'avg over epoch'),
+    cell('Lightning',       fmt.num(c.lightningBTC)+' BTC', fmt.num(c.lightningChannels)+' channels'),
+    cell('30m Fee',         (c.avgFeeSats||0)+' sat/vB', 'half-hour priority'),
+  ].join('');
+}
+
+function renderHalving(d){
+  const h = d.halving;
+  if(!h){
+    document.getElementById('halvingGrid').innerHTML = cell('Halving','—','data not available');
+    return;
+  }
+  document.getElementById('halvingGrid').innerHTML = [
+    cell('Halving #' + h.halvingNumber, fmt.num(h.daysUntil) + ' days', 'until next halving'),
+    cell('Blocks Remaining', fmt.num(h.blocksUntil), 'block ' + fmt.num(h.nextHalvingBlock) + ' = halving'),
+    cell('Current Reward',   h.currentReward + ' BTC', 'per block'),
+    cell('Next Reward',      h.nextReward + ' BTC',    'after halving'),
+  ].join('');
+}
+
+function renderSent(d){
+  const fg = d.fearGreed || {};
+  const ex = d.extras || {};
+  const col = fearColor(fg.value);
+  document.getElementById('sentRow').innerHTML = `
+    <div class="sentCard">
+      <div class="gauge" style="background:${col}">${fg.value??'—'}</div>
+      <div>
+        <div class="lbl" style="color:var(--muted);font-size:9px;letter-spacing:2px;">FEAR &amp; GREED</div>
+        <div class="val" style="color:${col};font-size:20px;font-weight:700;">${fg.label||'—'}</div>
+        <div class="sub" style="color:var(--dim);font-size:10px;margin-top:4px;">0 = extreme fear · 100 = extreme greed</div>
+      </div>
+    </div>
+    <div class="sentCard">
+      <div>
+        <div class="lbl" style="color:var(--muted);font-size:9px;letter-spacing:2px;">SENTIMENT VOTES</div>
+        <div class="val" style="font-size:18px;font-weight:600;">
+          <span class="pos">${ex.sentimentUp!=null?ex.sentimentUp.toFixed(0)+'%':'—'}</span> /
+          <span class="neg">${ex.sentimentDown!=null?ex.sentimentDown.toFixed(0)+'%':'—'}</span>
+        </div>
+        <div class="sub" style="color:var(--dim);font-size:10px;margin-top:4px;">up vs down (CoinGecko)</div>
+      </div>
+    </div>
+    <div class="sentCard">
+      <div>
+        <div class="lbl" style="color:var(--muted);font-size:9px;letter-spacing:2px;">PUBLIC INTEREST</div>
+        <div class="val" style="font-size:18px;font-weight:600;">${ex.publicInterest!=null?ex.publicInterest.toFixed(2):'—'}</div>
+        <div class="sub" style="color:var(--dim);font-size:10px;margin-top:4px;">Alexa / search-traffic score</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderExtras(d){
+  const ex = d.extras || {};
+  const b = d.btc || {};
+  document.getElementById('extrasGrid').innerHTML = [
+    cell('Max Supply',       ex.maxSupply?fmt.num(ex.maxSupply)+' BTC':'21,000,000 BTC'),
+    cell('Total Supply',     ex.totalSupply?fmt.num(ex.totalSupply)+' BTC':'—'),
+    cell('FDV',              fmt.usd(ex.fdv), 'fully diluted'),
+    cell('Market Cap Rank',  ex.marketCapRank?'#'+ex.marketCapRank:'—', 'across all crypto'),
+    cell('Dev Commits 4w',   fmt.num(ex.devCommits4w), 'bitcoin/bitcoin repo'),
+    cell('Active Devs 4w',   fmt.num(ex.devActiveDevs4w), 'unique contributors'),
+    cell('GitHub Stars',     fmt.num(ex.devStars), 'bitcoin/bitcoin'),
+    cell('GitHub Forks',     fmt.num(ex.devForks)),
+  ].join('');
+}
+
+function quoteRow(sym, q){
+  const ch = q?.changePct;
+  return `<tr onclick="openSymbol('${sym}')">
+    <td class="sym">${sym}</td>
+    <td class="r">${q?.price!=null?fmt.price(q.price):'—'}</td>
+    <td class="r ${cls(ch)}">${ch!=null?fmt.pct(ch):'—'}</td>
+  </tr>`;
+}
+function openSymbol(sym){
+  try { window.parent.postMessage({type:'unified-terminal:focus-tab', tabId:'markets', symbol:sym}, '*'); } catch(_){}
+}
+function renderBaskets(d){
+  const head = '<thead><tr><th>SYM</th><th class="r">PX</th><th class="r">CHG%</th></tr></thead>';
+  const map = { bskTreas:'treasuries', bskMiners:'miners', bskEtfs:'etfs' };
+  for(const [id, key] of Object.entries(map)){
+    const syms = (d.baskets||{})[key] || [];
+    const rows = syms.map(s => quoteRow(s, (d.quotes||{})[s])).join('');
+    document.getElementById(id).innerHTML = head + '<tbody>' + rows + '</tbody>';
+  }
+}
+
+/* ===== load loop ===== */
+async function load(){
+  try{
+    const r = await fetch('/api/btc/intel',{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    renderHero(d);
+    renderPerf(d);
+    renderFiat(d);
+    renderChain(d);
+    renderHalving(d);
+    renderSent(d);
+    renderExtras(d);
+    renderBaskets(d);
+    const t = new Date((d.ts||0)*1000);
+    document.getElementById('hTs').textContent =
+      t.toLocaleTimeString('en-US',{hour12:false}) + ' UTC';
+  }catch(e){
+    console.error('intel load failed', e);
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

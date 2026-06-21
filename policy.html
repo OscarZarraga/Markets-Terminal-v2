@@ -1,0 +1,377 @@
+<!doctype html>
+<!--
+  Policy Watch — Unified Terminal sub-page.
+
+  Aggregates today's regulatory + legislative + central bank + macro
+  data + BTC ETF flow events. All sources are free, no API keys.
+
+  Every clickable item opens as a new in-app tab via /api/proxy,
+  so SEC filings, Federal Register pages, committee hearing pages,
+  and ETF dashboards display inside the terminal without ever
+  launching Chrome.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Policy Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#000; --panel:#0b0b0b; --line:#1d1d1d; --text:#ffffff;
+  --muted:#e8e8e8; --dim:#b8b8b8;
+  --orange:#ff8c00; --amber:#ffb000; --green:#00d68f; --red:#ff3b30;
+  --blue:#4ea1ff; --purple:#b58cff;
+  --mono:'JetBrains Mono','SF Mono','Menlo',monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100vh;background:#000;color:var(--text);font-family:var(--mono);font-size:11px;}
+body{display:flex;flex-direction:column;overflow:hidden;}
+a{color:var(--blue);text-decoration:none;}
+a:hover{text-decoration:underline;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:#000;}
+::-webkit-scrollbar-thumb{background:#222;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:linear-gradient(180deg,#1a0e02,#000);border-bottom:1px solid var(--line);flex-shrink:0;}
+.topbar .h1{color:var(--orange);font-weight:700;letter-spacing:3px;font-size:13px;}
+.topbar .h1 .sub{color:var(--muted);font-size:11px;letter-spacing:1px;margin-left:14px;}
+.topbar .ts{color:var(--dim);font-size:10px;letter-spacing:1px;}
+.topbar .btn{padding:3px 12px;border:1px solid #2a1a05;color:var(--amber);cursor:pointer;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;}
+.topbar .btn:hover{background:#2a1a05;}
+
+.viewTabs{display:flex;background:#080808;border-bottom:1px solid var(--line);flex-shrink:0;overflow-x:auto;}
+.viewTab{padding:8px 18px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line);text-transform:uppercase;letter-spacing:2px;font-size:10px;white-space:nowrap;}
+.viewTab.active{color:var(--amber);background:#120a02;box-shadow:inset 0 -2px 0 var(--orange);}
+.viewTab:hover{color:var(--text);}
+.viewTab .count{margin-left:8px;color:var(--dim);font-size:9px;}
+.viewTab.active .count{color:var(--orange);}
+
+.body{flex:1;min-height:0;overflow:auto;background:#000;}
+.empty{padding:24px;color:var(--dim);text-align:center;font-size:11px;letter-spacing:1px;}
+.err{padding:14px;color:var(--red);font-size:11px;}
+
+.view{display:none;}
+.view.active{display:block;}
+
+/* feed item */
+.feed{}
+.item{padding:8px 14px;border-bottom:1px solid #131313;display:grid;grid-template-columns:90px 110px 1fr 140px;gap:12px;align-items:start;cursor:pointer;}
+.item:hover{background:#0e0e0e;}
+.item .when{color:var(--dim);font-size:10px;letter-spacing:1px;}
+.item .src{color:var(--amber);font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:500;}
+.item .ttl{color:var(--text);overflow:hidden;line-height:1.4;}
+.item .ttl .body{color:var(--muted);font-size:10px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.item .kind{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;text-align:right;color:var(--muted);}
+
+/* Federal Register specific */
+.kind.rule{color:var(--red);}
+.kind.prorule{color:var(--amber);}
+.kind.notice{color:var(--blue);}
+.deadline-soon{color:var(--red);}
+.deadline-week{color:var(--amber);}
+
+/* committee chip */
+.chip{display:inline-block;padding:1px 7px;font-size:9px;border:1px solid var(--line);color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.chip.sb{color:#9bd400;border-color:#3a4a05;}
+.chip.sa{color:#b58cff;border-color:#3a2a55;}
+.chip.hf{color:#ffb000;border-color:#3a2a05;}
+.chip.ha{color:#4ea1ff;border-color:#1a3a55;}
+
+/* ETF flow table */
+table.flowtbl{width:100%;border-collapse:collapse;font-size:11px;}
+.flowtbl th,.flowtbl td{padding:6px 10px;border-bottom:1px solid #131313;text-align:right;white-space:nowrap;}
+.flowtbl th{position:sticky;top:0;background:#0a0a0a;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:1px;font-size:9px;text-align:right;}
+.flowtbl th.l, .flowtbl td.l{text-align:left;}
+.flowtbl td.pos{color:var(--green);}
+.flowtbl td.neg{color:var(--red);}
+.flowtbl td.zero{color:var(--dim);}
+.flowtbl tr:hover td{background:#0e0e0e;}
+
+/* Links grid */
+.linksWrap{padding:14px;}
+.linkCat{margin-bottom:18px;}
+.linkCat .h{color:var(--orange);text-transform:uppercase;letter-spacing:3px;font-size:11px;padding:6px 12px;background:#0a0a0a;border-left:3px solid var(--orange);margin-bottom:8px;}
+.linkGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);}
+.linkItem{background:#000;padding:8px 12px;cursor:pointer;}
+.linkItem:hover{background:#0e0e0e;}
+.linkItem .lbl{color:var(--text);font-size:11px;}
+.linkItem .url{color:var(--dim);font-size:9px;margin-top:3px;letter-spacing:0.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+.foot{padding:8px 14px;color:var(--dim);font-size:9px;text-align:center;letter-spacing:1px;border-top:1px solid var(--line);background:#050505;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="h1">POLICY WATCH <span class="sub">today's hearings · rules · Fed · ETF flows · regulators</span></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="ts" id="ts">…</span>
+    <span class="btn" id="refreshBtn">↻ REFRESH</span>
+  </div>
+</div>
+
+<div class="viewTabs" id="viewTabs">
+  <div class="viewTab active" data-v="all">All <span class="count" id="cnt-all"></span></div>
+  <div class="viewTab" data-v="committees">Committee Hearings <span class="count" id="cnt-committees"></span></div>
+  <div class="viewTab" data-v="fedreg">Federal Register <span class="count" id="cnt-fedreg"></span></div>
+  <div class="viewTab" data-v="regulators">SEC · CFTC · Fed · Treasury <span class="count" id="cnt-reg"></span></div>
+  <div class="viewTab" data-v="central">Central Banks (Intl) <span class="count" id="cnt-central"></span></div>
+  <div class="viewTab" data-v="etf">BTC + ETH ETF Flows <span class="count" id="cnt-etf"></span></div>
+  <div class="viewTab" data-v="links">All Sources</div>
+</div>
+
+<div class="body">
+  <div class="view active" data-v="all"><div id="allView"></div></div>
+  <div class="view"        data-v="committees"><div id="committeesView"></div></div>
+  <div class="view"        data-v="fedreg"><div id="fedregView"></div></div>
+  <div class="view"        data-v="regulators"><div id="regulatorsView"></div></div>
+  <div class="view"        data-v="central"><div id="centralView"></div></div>
+  <div class="view"        data-v="etf"><div id="etfView"></div></div>
+  <div class="view"        data-v="links"><div id="linksView"></div></div>
+</div>
+
+<div class="foot">
+  Sources: Federal Register API · Federal Reserve / Treasury / SEC / CFTC RSS · Senate Banking + Ag · House Fin Services + Ag · ECB · BoE · Farside ETF · all free, no keys
+</div>
+
+<script>
+const state = { data: null, view: 'all' };
+
+function fmtWhen(d){
+  if(!d) return '';
+  let t;
+  if(typeof d === 'number') t = new Date(d > 1e12 ? d : d*1000);
+  else t = new Date(d);
+  if(isNaN(t.getTime())){
+    // Try to parse formats like "16 May 2026"
+    return d.toString().slice(0, 16);
+  }
+  const now = new Date();
+  const diff = (now - t) / 1000;
+  if(diff < 60) return 'just now';
+  if(diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if(diff < 86400 && diff > 0) return Math.floor(diff/3600) + 'h ago';
+  if(diff < 86400*7 && diff > 0) return Math.floor(diff/86400) + 'd ago';
+  if(diff < 0){
+    const fwd = -diff;
+    if(fwd < 86400) return 'in ' + Math.floor(fwd/3600) + 'h';
+    if(fwd < 86400*7) return 'in ' + Math.floor(fwd/86400) + 'd';
+  }
+  return t.toLocaleDateString('en-US', {month:'short', day:'numeric', year: t.getFullYear()===now.getFullYear()?undefined:'2-digit'});
+}
+
+function openTab(url, title){
+  if(!url) return;
+  try{ window.parent.postMessage({type:'unified-terminal:open-tab', url:url, title:title||url}, '*'); }
+  catch(_){}
+}
+window.openTab = openTab;
+
+function htmlEscape(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function deadlineClass(deadline){
+  if(!deadline) return '';
+  const days = (new Date(deadline) - new Date()) / 86400000;
+  if(days < 0) return 'mu';
+  if(days <= 3) return 'deadline-soon';
+  if(days <= 10) return 'deadline-week';
+  return '';
+}
+
+/* ---------- renderers ---------- */
+function renderItem(it){
+  return `<div class="item" onclick="openTab('${(it.link||'').replace(/'/g,'%27')}','${htmlEscape(it.title).replace(/'/g,'').slice(0,60)}')">
+    <div class="when">${fmtWhen(it.date)}</div>
+    <div class="src">${htmlEscape(it.source||'')}</div>
+    <div class="ttl">${htmlEscape(it.title)}${it.summary?`<div class="body">${htmlEscape(it.summary)}</div>`:''}</div>
+    <div class="kind">${htmlEscape(it.kind||'')}</div>
+  </div>`;
+}
+
+function renderCommittees(d){
+  const rows = (d.committees||[]);
+  if(!rows.length) return '<div class="empty">No committee hearings posted.</div>';
+  const html = rows.map(r => {
+    const c = r.committee||'';
+    const chip = c.startsWith('Senate Banking') ? 'sb' :
+                 c.startsWith('Senate Agric') ? 'sa' :
+                 c.startsWith('House Fin') ? 'hf' : 'ha';
+    return `<div class="item" onclick="openTab('${(r.link||'').replace(/'/g,'%27')}','${htmlEscape(r.title||'').replace(/'/g,'').slice(0,60)}')">
+      <div class="when">${fmtWhen(r.date)}</div>
+      <div class="src"><span class="chip ${chip}">${htmlEscape(c)}</span></div>
+      <div class="ttl">${htmlEscape(r.title)}${r.summary?`<div class="body">${htmlEscape(r.summary)}</div>`:''}</div>
+      <div class="kind">Hearing</div>
+    </div>`;
+  }).join('');
+  return `<div class="feed">${html}</div>`;
+}
+
+function renderFedReg(d){
+  const rows = (d.fed_register||[]);
+  if(!rows.length) return '<div class="empty">No Federal Register matches in window.</div>';
+  const html = rows.map(r => {
+    const kind = (r.type||'').toLowerCase().includes('proposed') ? 'prorule' :
+                 (r.type||'').toLowerCase().includes('rule') ? 'rule' : 'notice';
+    return `<div class="item" onclick="openTab('${(r.link||'').replace(/'/g,'%27')}','${htmlEscape(r.title).replace(/'/g,'').slice(0,60)}')">
+      <div class="when">${fmtWhen(r.date)}</div>
+      <div class="src">${htmlEscape(r.agency||'')}</div>
+      <div class="ttl">${htmlEscape(r.title)}${r.summary?`<div class="body">${htmlEscape(r.summary)}</div>`:''}
+        ${r.deadline?`<div class="body ${deadlineClass(r.deadline)}">Comment deadline: ${r.deadline}</div>`:''}</div>
+      <div class="kind ${kind}">${htmlEscape(r.type||'')}</div>
+    </div>`;
+  }).join('');
+  return `<div class="feed">${html}</div>`;
+}
+
+function renderRegulators(d){
+  const items = [].concat(
+    (d.fed||[]).map(x=>({...x,kind:'Fed'})),
+    (d.sec||[]).map(x=>({...x,kind:'SEC'})),
+    (d.cftc||[]).map(x=>({...x,kind:'CFTC'})),
+    (d.treasury||[]).map(x=>({...x,kind:'Treasury'})),
+  );
+  items.sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0));
+  if(!items.length) return '<div class="empty">No regulator items right now.</div>';
+  return `<div class="feed">${items.map(renderItem).join('')}</div>`;
+}
+
+function renderCentral(d){
+  const items = [].concat(
+    (d.ecb||[]).map(x=>({...x,kind:'ECB'})),
+    (d.boe||[]).map(x=>({...x,kind:'BoE'})),
+  );
+  items.sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0));
+  if(!items.length) return '<div class="empty">No international central bank items right now.</div>';
+  return `<div class="feed">${items.map(renderItem).join('')}</div>`;
+}
+
+function renderFlows(d){
+  function block(title, rows){
+    if(!rows || !rows.length) return `<div class="empty">No ${title} flow data.</div>`;
+    const cols = Object.keys(rows[0].fund||{});
+    const headerCols = cols.map(c => `<th>${c}</th>`).join('');
+    const body = rows.map(r => {
+      const total = r.total_m;
+      const rowCols = cols.map(c => {
+        const v = (r.fund||{})[c];
+        const kl = v == null || v === 0 ? 'zero' : (v > 0 ? 'pos' : 'neg');
+        return `<td class="${kl}">${v==null?'—':v.toFixed(1)}</td>`;
+      }).join('');
+      return `<tr><td class="l">${htmlEscape(r.date)}</td>${rowCols}</tr>`;
+    }).join('');
+    return `<div style="padding:8px 14px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;font-size:10px;background:#0a0a0a;border-bottom:1px solid var(--line)">${title}</div>
+      <table class="flowtbl">
+        <thead><tr><th class="l">Date</th>${headerCols}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>`;
+  }
+  return block('Bitcoin Spot ETF — Daily Net Flows (USD M)', d.btc_etf_flows) +
+         block('Ethereum Spot ETF — Daily Net Flows (USD M)', d.eth_etf_flows) +
+         `<div style="padding:14px;color:var(--dim);font-size:10px">
+            Source: farside.co.uk. Click <a href="#" onclick="openTab('https://farside.co.uk/btc/','Farside BTC');return false;">BTC dashboard</a>
+            or <a href="#" onclick="openTab('https://farside.co.uk/eth/','Farside ETH');return false;">ETH dashboard</a> for the full table.
+          </div>`;
+}
+
+function renderAll(d){
+  // Unified feed: latest committee / federal register / regulator press / central bank
+  const all = []
+    .concat((d.committees||[]).map(x=>({...x, _bucket:'committees', kind: x.committee || 'Hearing'})))
+    .concat((d.fed_register||[]).map(x=>({...x, _bucket:'fedreg', kind: x.type||'Federal Register'})))
+    .concat((d.fed||[]).map(x=>({...x, _bucket:'reg', kind:'Federal Reserve'})))
+    .concat((d.sec||[]).map(x=>({...x, _bucket:'reg', kind:'SEC'})))
+    .concat((d.cftc||[]).map(x=>({...x, _bucket:'reg', kind:'CFTC'})))
+    .concat((d.treasury||[]).map(x=>({...x, _bucket:'reg', kind:'Treasury'})))
+    .concat((d.ecb||[]).map(x=>({...x, _bucket:'central', kind:'ECB'})))
+    .concat((d.boe||[]).map(x=>({...x, _bucket:'central', kind:'BoE'})));
+  all.sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0));
+  if(!all.length) return '<div class="empty">No policy events fetched (network or upstream issue).</div>';
+  return `<div class="feed">${all.slice(0,120).map(renderItem).join('')}</div>`;
+}
+
+function renderLinks(d){
+  const cats = (d.links || {});
+  const titles = {
+    regulatory_legislative: 'Regulatory & Legislative',
+    macro_economic:         'Macro & Economic Data',
+    btc_treasury_filings:   'BTC Treasury Companies',
+    etf_derivatives:        'ETF Flows & Derivatives',
+    market_onchain:         'Market Price & On-Chain',
+    international:          'International',
+    trackers:               'Specialized Trackers',
+  };
+  const order = Object.keys(titles);
+  const blocks = order.filter(k => cats[k] && cats[k].length).map(k => {
+    const items = (cats[k]||[]).map(([label, url]) => `
+      <div class="linkItem" onclick="openTab('${url.replace(/'/g,'%27')}','${label.replace(/'/g,'')}')">
+        <div class="lbl">${htmlEscape(label)}</div>
+        <div class="url">${htmlEscape(url)}</div>
+      </div>`).join('');
+    return `<div class="linkCat">
+      <div class="h">${titles[k]}</div>
+      <div class="linkGrid">${items}</div>
+    </div>`;
+  }).join('');
+  return `<div class="linksWrap">${blocks}</div>`;
+}
+
+/* ---------- view switch ---------- */
+document.getElementById('viewTabs').addEventListener('click', e => {
+  const t = e.target.closest('.viewTab'); if(!t) return;
+  document.querySelectorAll('.viewTab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.v === t.dataset.v));
+  state.view = t.dataset.v;
+  paintCurrent();
+});
+
+function paintCurrent(){
+  const d = state.data; if(!d) return;
+  if(state.view === 'all')        document.getElementById('allView').innerHTML        = renderAll(d);
+  if(state.view === 'committees') document.getElementById('committeesView').innerHTML = renderCommittees(d);
+  if(state.view === 'fedreg')     document.getElementById('fedregView').innerHTML     = renderFedReg(d);
+  if(state.view === 'regulators') document.getElementById('regulatorsView').innerHTML = renderRegulators(d);
+  if(state.view === 'central')    document.getElementById('centralView').innerHTML    = renderCentral(d);
+  if(state.view === 'etf')        document.getElementById('etfView').innerHTML        = renderFlows(d);
+  if(state.view === 'links')      document.getElementById('linksView').innerHTML      = renderLinks(d);
+}
+
+function updateCounts(d){
+  const cnt = id => document.getElementById(id);
+  const total = (d.committees||[]).length + (d.fed_register||[]).length +
+                (d.fed||[]).length + (d.sec||[]).length + (d.cftc||[]).length +
+                (d.treasury||[]).length + (d.ecb||[]).length + (d.boe||[]).length;
+  cnt('cnt-all').textContent      = total ? '· '+total : '';
+  cnt('cnt-committees').textContent = (d.committees||[]).length ? '· '+(d.committees||[]).length : '';
+  cnt('cnt-fedreg').textContent   = (d.fed_register||[]).length ? '· '+(d.fed_register||[]).length : '';
+  cnt('cnt-reg').textContent      = ((d.fed||[]).length + (d.sec||[]).length + (d.cftc||[]).length + (d.treasury||[]).length) || '';
+  cnt('cnt-reg').textContent      = cnt('cnt-reg').textContent ? '· '+cnt('cnt-reg').textContent : '';
+  const c2 = (d.ecb||[]).length + (d.boe||[]).length;
+  cnt('cnt-central').textContent  = c2 ? '· '+c2 : '';
+  const c3 = (d.btc_etf_flows||[]).length + (d.eth_etf_flows||[]).length;
+  cnt('cnt-etf').textContent      = c3 ? '· '+c3 + ' days' : '';
+}
+
+async function load(){
+  document.getElementById('allView').innerHTML = '<div class="empty">Loading aggregated policy feed…</div>';
+  try{
+    const r = await fetch('/api/policy/today', {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    state.data = d;
+    updateCounts(d);
+    paintCurrent();
+    const t = new Date((d.ts||0)*1000);
+    document.getElementById('ts').textContent = t.toLocaleTimeString('en-US',{hour12:false}) + ' UTC';
+  }catch(e){
+    document.getElementById('allView').innerHTML = '<div class="err">load error: ' + (e.message||e) + '</div>';
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+setInterval(load, 600000);  // 10 min
+</script>
+</body>
+</html>
