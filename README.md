@@ -1,4 +1,4 @@
-# Unified Terminal
+# Markets Terminal
 
 A free, self-hosted, Bloomberg-style markets terminal.
 Quotes, financials, news, SEC filings, policy events, BTC + crypto, all in one window — no broker account, no API keys required, no Chrome pop-ups.
